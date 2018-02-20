@@ -1,0 +1,23 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title></title>
+</head>
+<body>
+    <script src="tt_wslib.js"></script>
+    <script>
+        var ws;
+        (function () {
+
+            ws = new twitch_ws('dcirpjuzebyjmxvjyj30x6pybo8nx9');
+            //ws = new twitch_ws();
+
+            //ws.onMessage = function (data) {
+            //    console.log('i got a message!');
+            //}
+
+            ws.Join(['timeshifter08', 'dwangoac']);
+        })();
+
+    </script>
+</body>
+</html>
