@@ -8,14 +8,38 @@
         var ws;
         (function () {
 
-            ws = new twitch_ws('dcirpjuzebyjmxvjyj30x6pybo8nx9');
-            //ws = new twitch_ws();
+            ws = new twitch_ws('dcirpjuzebyjmxvjyj30x6pybo8nx9', 'botshifter08', 'oauth:3a6ua6vqiqsc8xcm0fvxm4i89rsaet');
+            //ws = new twitch_ws(['botshifter08']);
 
-            //ws.onMessage = function (data) {
-            //    console.log('i got a message!');
-            //}
+            ws.onRoomstate = function (data) {
+                console.log('>>>ROOMSTATE EVENT ' + data);
+            }
 
-            ws.Join(['timeshifter08', 'dwangoac']);
+            ws.onJoin = function (data) {
+                //console.log('>>>JOIN EVENT ' + data);
+            }
+
+            ws.onPart = function (data) {
+                //console.log('>>>PART EVENT ' + data);
+            }
+
+            ws.onPrivmsg = function (data) {
+                //console.log('>>>MESSAGE EVENT ' + data);
+            }
+
+            ws.onMode = function (data) {
+
+            }
+
+            ws.onUsernotice = function (data) {
+                console.log('>>>USERNOTICE EVENT ' + data);
+            }
+
+            ws.onError = function (data) {
+                console.log('>>>ERROR ' + data);
+            }
+
+            ws.Join(['timeshifter08', 'dwangoAC', 'mitchflowerpower','speedgaming']);
         })();
 
     </script>

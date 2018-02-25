@@ -1,16 +1,14 @@
+//TODO: viewers https://tmi.twitch.tv/group/user/<username>/chatters
 
-function twitch_ws(client_id) {
-    var Channels=[], ClientID;
+
+
+function twitch_ws(client_id, nick, pass) {
+    var Channels = [], ClientID;
+
     var _ws;
-    var handlers = {
-        onMessage: true,
-        onPrivmsg: true,
-        onRoomstate:true,
-        onJoin: true,
-        onPart: true
-    };
+    var handlers = {};
 
-    var debug = true;
+    var debug = false;
 
     var refObj = this;
 
@@ -25,6 +23,26 @@ function twitch_ws(client_id) {
 
     this.Debug = function () {
         console.log(Channels);
+    }
+
+    this.SendMessage = function (channel, text) {
+        refObj.send('PRIVMSG #' + channel + ' :' + text);
+    }
+
+    this.SendRaw = function (text) {
+        refObj.send(text);
+    }
+
+    function fireEvent(eventName, data) {
+        if (refObj[eventName]) {
+            refObj[eventName](data);
+        }
+        else {
+            if (!handlers[eventName]) {
+                console.log('No ' + eventName + ' handler defined!');
+                handlers[eventName] = true;
+            }
+        }
     }
 
     this.Join = function (channelArray) {
@@ -43,125 +61,84 @@ function twitch_ws(client_id) {
                 Channels[chan.toLowerCase().trim()] = {};
             });
         }
-
+        channelsLoading = channelArray.length;
 
         if (_ws != undefined && _ws.readyState != 3) {
             _ws.close();
             return;
         }
 
-        channelsLoading = channelArray.length;
-
         _ws = new WebSocket('wss://irc-ws.chat.twitch.tv');
 
-
         _ws.onopen = function () {
-            this.send('CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership');
-            this.send('NICK justinfan' + Math.floor(Math.random() * 999999));
-
-            //this.send('JOIN #199.9.253.119');
-            for (var chan in Channels) {
-                this.send('JOIN #' + chan);
+            refObj.send('CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership');
+            if (nick && pass) {
+                refObj.send('PASS ' + pass);
+                refObj.send('NICK ' + nick);
+            }
+            else {
+                refObj.send('NICK justinfan' + Math.floor(Math.random() * 999999));
             }
 
+            for (var chan in Channels) {
+                refObj.send('JOIN #' + chan);
+            }
         }
 
         _ws.onmessage = function (msgEvent) {
-            var data = msgEvent.data;
-            if (debug) {
-                console.log('>' + data);
-            }
+            var data = msgEvent.data.split('\r\n');
 
-            if (refObj.onMessage) {
-                refObj.onMessage(data);
-            }
-            else {
-                if (handlers.onMessage) {
-                    console.log('No onMessage handler defined!');
-                    handlers.onMessage = false;
-                }
-            }
+            for (var i in data) {
+                var line = data[i];
 
-
-            var parts = data.split(' ');
-            var userdata = parts[0].split(';');
-
-            if (parts[0] == 'PING') {
-                send('PONG ' + parts[1].substring(1));
-            }
-            else if (parts[2] == 'ROOMSTATE') {
-                //TODO: add event handler for ROOMSTATE
-                var channel = data.split(' ')[3].substring(1).trim();
-
-
-                //channel record has already been created, bail
-                if (Channels[channel].RoomID != undefined) {
-                    return;
+                if (line.trim() == '') {
+                    continue;
                 }
 
-                var roomId;
-                for (var i = 0; i < userdata.length; i++) {
-                    if (userdata[i].indexOf('room-id') == 0) {
-                        var roomId = userdata[i].split('=')[1];
-                        break;
-                    }
+                if (debug) {
+                    console.log('>' + line);
                 }
 
-                //this should never be hit, it means the chat API did something very bad, but if it did, bail
-                if (roomId == null) {
-                    return;
+                fireEvent('onMessage', line);
+
+                var parts = line.split(' ');
+
+                if (parts[0] == 'PING') {
+                    refObj.send('PONG ' + parts[1].substring(1));
+                    fireEvent('onPing');
                 }
-
-
-                //cool, we're supposed to be here, initialize channel data
-                Channels[channel].RoomID = roomId;
-                Channels[channel].Followers = [];
-                Channels[channel].FollowerCount = -1;
-                Channels[channel].LastCursor = '';
-                Channels[channel].LatestFollowerID = -1;
-                Channels[channel].LatestFollowerName = '';
-                Channels[channel].InitialLoadComplete = false;
-
-
-                //client id was provided, so kick off follower load routine
-                if (ClientID != null) {
-                    GetFollowers(channel, roomId);
+                else if (parts[1] == 'JOIN') {
+                    fireEvent('onJoin', line);
                 }
-
-                Channels[channel].InitialLoadComplete = true;
-
-                if (refObj.onRoomstate) {
-                    refObj.onRoomstate(data);
+                else if (parts[1] == 'PART') {
+                    fireEvent('onPart', line);
+                }
+                else if (parts[1] == 'MODE') {
+                    fireEvent('onMode', line);
+                }
+                else if (parts[2] == 'PRIVMSG') {
+                    fireEvent('onPrivmsg', line);
+                }
+                else if (parts[2] == 'ROOMSTATE') {
+                    InitChannel(line);
+                    fireEvent('onRoomstate', line);
+                }
+                else if (parts[2] == 'USERNOTICE') {
+                    fireEvent('onUsernotice', line);
                 }
                 else {
-                    if (handlers.onRoomstate) {
-                        console.log('No onRoomstate handler defined!');
-                        handlers.onRoomstate = false;
-                    }
-                }
-
-
-            }
-            else if (parts[1] == 'PRIVMSG') {
-                if (refObj.onPrivmsg) {
-                    refObj.onPrivmsg(data);
-                }
-                else {
-                    if (handlers.onPrivmsg) {
-                        console.log('No onPrivmsg handler defined!');
-                        handlers.onPrivmsg = false;
-                    }
+                    console.log('>' + line);
                 }
             }
-
         }
-
 
         //whoops
         _ws.onerror = function (e) {
-            console.log('Websocket error: ', e);
+            fireEvent('onError', e);
+            if (debug) {
+                console.log('Websocket error: ', e);
+            }
         }
-
 
         //auto reconnect 
         _ws.onclose = function (e) {
@@ -171,6 +148,46 @@ function twitch_ws(client_id) {
         }
     }
 
+    function InitChannel(data) {
+        var parts = data.split(' ');
+        var userdata = parts[0].split(';');
+
+        var channel = data.split(' ')[3].substring(1).trim();
+
+        //channel record has already been created, bail
+        if (Channels[channel].RoomID != undefined) {
+            return;
+        }
+
+        var roomId;
+        for (var i = 0; i < userdata.length; i++) {
+            if (userdata[i].indexOf('room-id') == 0) {
+                var roomId = userdata[i].split('=')[1];
+                break;
+            }
+        }
+
+        if (roomId == null) {
+            //this should never be hit, it means the chat API did something very bad, but if it did, bail
+            return;
+        }
+
+        //cool, we're supposed to be here, initialize channel data
+        Channels[channel].RoomID = roomId;
+        Channels[channel].Followers = [];
+        Channels[channel].FollowerCount = -1;
+        Channels[channel].LastCursor = '';
+        Channels[channel].LatestFollowerID = -1;
+        Channels[channel].LatestFollowerName = '';
+        Channels[channel].InitialLoadComplete = false;
+
+        //client id was provided, so kick off follower load routine
+        if (ClientID != null) {
+            //GetFollowers(channel, roomId);
+        }
+
+        Channels[channel].InitialLoadComplete = true;
+    }
 
     function GetFollowers(channel, roomId) {
 
@@ -232,15 +249,10 @@ function twitch_ws(client_id) {
 
     }
 
-
-    function send(msg) {
+    this.send = function (msg) {
         _ws.send(msg);
         if (debug) {
             console.log('<' + msg);
         }
     }
-
 }
-
-
-
