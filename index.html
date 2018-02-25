@@ -8,8 +8,8 @@
         var ws;
         (function () {
 
-            ws = new twitch_ws('dcirpjuzebyjmxvjyj30x6pybo8nx9', 'botshifter08', 'oauth:3a6ua6vqiqsc8xcm0fvxm4i89rsaet');
-            //ws = new twitch_ws(['botshifter08']);
+            
+            ws = new twitch_ws(['botshifter08']);
 
             ws.onRoomstate = function (data) {
                 console.log('>>>ROOMSTATE EVENT ' + data);
